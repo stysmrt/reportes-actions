@@ -37,19 +37,22 @@ function run(cmd, args, opts = {}) {
 }
 
 function argumentos(argv) {
-  const o = { dir: null, subir: false, secreto: true, cambiar: false };
+  const o = { dirs: [], subir: false, secreto: true, cambiar: false };
   for (const a of argv) {
     if (a === "--subir") o.subir = true;
     else if (a === "--sin-secreto") o.secreto = false;
     else if (a === "--cambiar-secreto") o.cambiar = true;
     else if (a.startsWith("--")) throw new Error(`no entiendo «${a}»`);
-    else if (!o.dir) o.dir = path.resolve(a);
-    else throw new Error("una sola ruta");
+    else o.dirs.push(path.resolve(a));
   }
-  if (!o.dir) throw new Error("uso: node sumar-repo.cjs <ruta del clon> [--subir] [--sin-secreto] [--cambiar-secreto]");
-  if (!fs.existsSync(path.join(o.dir, ".git"))) throw new Error(`${o.dir} no es un repositorio git`);
+  if (!o.dirs.length) throw new Error("uso: node sumar-repo.cjs <ruta del clon> [<ruta>...] [--subir] [--sin-secreto] [--cambiar-secreto]");
+  for (const d of o.dirs) if (!fs.existsSync(path.join(d, ".git"))) throw new Error(`${d} no es un repositorio git`);
   return o;
 }
+
+// El token se lee una sola vez para todos los repos: el cofre de la barra vacía el
+// portapapeles a los 30 s.
+let tokenLeido = null;
 
 function ramaPrincipal(repo, dir) {
   try {
@@ -107,21 +110,25 @@ async function secreto(repo, o) {
     console.log(`secreto ${SECRETO}: ya está en ${repo} (--cambiar-secreto para reemplazarlo)`);
     return;
   }
-  let token = (process.env[SECRETO] || "").trim();
-  const delPortapapeles = !token;
-  if (delPortapapeles) token = portapapeles("leer") || "";
-  if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(token)) {
-    throw new Error(`no encuentro un token de GitHub en ${delPortapapeles ? "el portapapeles" : SECRETO}: copia el token (github_pat_…) y vuelve a correrlo`);
-  }
   const brain = (leeConfig() || PREDETERMINADA).brain;
-  const r = await fetch(`https://api.github.com/repos/${brain}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "reportes-actions" },
-  });
-  if (r.status !== 200) throw new Error(`el token no puede leer ${brain} (HTTP ${r.status}): ¿caducó o es de otro repo? No guardo nada`);
-  const s = spawnSync("gh", ["secret", "set", SECRETO, "-R", repo], { input: token, encoding: "utf8" });
+  if (!tokenLeido) {
+    let token = (process.env[SECRETO] || "").trim();
+    const delPortapapeles = !token;
+    if (delPortapapeles) token = portapapeles("leer") || "";
+    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(token)) {
+      throw new Error(`no encuentro un token de GitHub en ${delPortapapeles ? "el portapapeles (el cofre lo vacía a los 30 s)" : SECRETO}: cópialo (github_pat_…) y vuelve a correrlo enseguida`);
+    }
+    if (delPortapapeles) portapapeles("vaciar");
+    const r = await fetch(`https://api.github.com/repos/${brain}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "reportes-actions" },
+    });
+    if (r.status !== 200) throw new Error(`el token no puede leer ${brain} (HTTP ${r.status}): ¿caducó o es de otro repo? No guardo nada`);
+    tokenLeido = token;
+    console.log(`token: puede leer ${brain}${delPortapapeles ? "; portapapeles vaciado" : ""}`);
+  }
+  const s = spawnSync("gh", ["secret", "set", SECRETO, "-R", repo], { input: tokenLeido, encoding: "utf8" });
   if (s.status !== 0) throw new Error(`gh secret set falló: ${(s.stderr || "").trim()}`);
-  if (delPortapapeles) portapapeles("vaciar");
-  console.log(`secreto ${SECRETO}: guardado en ${repo} (el token puede leer ${brain})${delPortapapeles ? "; portapapeles vaciado" : ""}`);
+  console.log(`secreto ${SECRETO}: guardado en ${repo}`);
 }
 
 function subir(dir, rama, archivos) {
@@ -142,6 +149,22 @@ function subir(dir, rama, archivos) {
 
 async function main() {
   const o = argumentos(process.argv.slice(2));
+  let fallos = 0;
+  for (const dir of o.dirs) {
+    try {
+      await sumar({ ...o, dir });
+    } catch (e) {
+      console.error(`error en ${dir}: ${e.message}`);
+      fallos++;
+      // Sin token válido no tiene sentido seguir con los demás.
+      if (/token/.test(e.message) && !tokenLeido) break;
+    }
+    console.log("");
+  }
+  if (fallos) process.exit(1);
+}
+
+async function sumar(o) {
   const remoto = run("git", ["-C", o.dir, "remote", "get-url", "origin"]);
   const repo = repoDeRemoto(remoto);
   if (!repo) throw new Error(`el remoto origin no es de GitHub: ${remoto.replace(/\/\/[^@/]+@/, "//")}`);
@@ -162,6 +185,7 @@ async function main() {
 }
 
 main().catch((e) => {
+  // Solo errores de argumentos: los de cada repo ya se dijeron en main.
   console.error(`error: ${e.message}`);
   process.exit(1);
 });

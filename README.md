@@ -48,6 +48,10 @@ con la API de GitHub que el token puede leer el vault y lo guarda como secreto c
 la rama principal, y ese push ya es el primer reporte. Si estás en otra rama, súbelo
 con tu flujo. `--sin-secreto` y `--cambiar-secreto` controlan el secreto.
 
+Admite varios repos a la vez (`node sumar-repo.cjs <ruta1> <ruta2> --subir`): el token se
+lee una sola vez. Si lo copias de un gestor que vacía el portapapeles (el cofre de la
+barra lo hace a los 30 s), corre el comando enseguida.
+
 A mano es lo mismo:
 
 1. Copia [`ejemplo/reporte.yml`](ejemplo/reporte.yml) a `.github/workflows/reporte.yml`
