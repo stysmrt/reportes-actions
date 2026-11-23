@@ -134,7 +134,8 @@ function datosRepo(dir) {
   };
 }
 
-const sinHora = (texto) => texto.replace(/^actualizado:.*$/m, "");
+// En Windows, git deja el clon con CRLF y aquí se escribe con LF: se comparan sin eso.
+const sinHora = (texto) => texto.replace(/\r\n/g, "\n").replace(/^actualizado:.*$/m, "");
 
 /** Escribe la nota de la máquina, crea las fichas que faltan y recalcula los clones. */
 function aplicar(brainDir, o, filas, t) {
@@ -188,6 +189,11 @@ function subir(o, filas, t) {
         return;
       }
       git(["add", "--sparse", "--", ...cambios], tmp);
+      if (gitO(["diff", "--cached", "--quiet"], tmp) !== null) {
+        // Lo escrito es igual a lo que había para git (solo cambió el fin de línea).
+        console.log("inventario: nada cambió desde el último; no se sube nada");
+        return;
+      }
       git(["commit", "-m", `Inventario: ${o.maquina} ${t.fecha} ${t.hora} (${filas.length} repos)`], tmp);
       try {
         git(["push", "origin", `HEAD:${rama}`], tmp);

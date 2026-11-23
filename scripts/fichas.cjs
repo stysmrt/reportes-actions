@@ -245,7 +245,8 @@ function actualizaClones(brainDir, carpeta) {
   const cambiadas = [];
   for (const { rel, repo } of fichas(brainDir, carpeta).values()) {
     const abs = path.join(brainDir, ...rel.split("/"));
-    const antes = fs.readFileSync(abs, "utf8");
+    // Sin CRLF (git en Windows): si no, todo parecería cambiado y la nota quedaría mezclada.
+    const antes = fs.readFileSync(abs, "utf8").replace(/\r\n/g, "\n");
     const despues = reemplazaBloque(antes, "clones", contenidoClones(maquinas, repo));
     if (despues !== antes) {
       fs.writeFileSync(abs, despues, "utf8");
