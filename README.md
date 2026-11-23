@@ -32,6 +32,24 @@ vuelve a escribir encima de lo último.
 
 ## Sumar un repositorio
 
+Una vez por repositorio (no por PC), para repos existentes o nuevos, de tu cuenta, de
+una organización o de otra cuenta, privados o públicos. Con un comando, desde el clon de
+reportes-actions y con el token copiado en el portapapeles (o en la variable
+`BRAIN_RAW_TOKEN`):
+
+```
+node sumar-repo.cjs <ruta del clon del repo> --subir
+```
+
+Crea `.github/workflows/reporte.yml` (con la rama principal del repo) y
+`.github/reporte.json` (con README, AGENTS.md, docs… si existen) si faltan. Comprueba
+con la API de GitHub que el token puede leer el vault y lo guarda como secreto con
+`gh`, sin mostrarlo, y después vacía el portapapeles. Con `--subir` hace commit y push a
+la rama principal, y ese push ya es el primer reporte. Si estás en otra rama, súbelo
+con tu flujo. `--sin-secreto` y `--cambiar-secreto` controlan el secreto.
+
+A mano es lo mismo:
+
 1. Copia [`ejemplo/reporte.yml`](ejemplo/reporte.yml) a `.github/workflows/reporte.yml`
    (cambia `main` si su rama principal es otra).
 2. Opcional: copia [`ejemplo/reporte.json`](ejemplo/reporte.json) a
@@ -90,5 +108,6 @@ node skills/proyectos-barra/scripts/proyecto.cjs lista | ficha <repo> | reportes
 | `scripts/tarea.cjs` | Lo que corre la tarea programada |
 | `scripts/config.cjs` | `~/.reportes-actions.json` |
 | `instalar.cjs` | Instalación en un PC |
+| `sumar-repo.cjs` | Sumar un repositorio (workflow, `reporte.json`, secreto) |
 
 Node 18 o más nuevo, sin dependencias.
