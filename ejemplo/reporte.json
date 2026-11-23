@@ -1,0 +1,6 @@
+{
+  "dondeMirar": [
+    { "para": "Qué es y cómo se instala", "ruta": "README.md" },
+    { "para": "Convenciones para trabajar en el repo (también para una IA)", "ruta": "AGENTS.md" }
+  ]
+}

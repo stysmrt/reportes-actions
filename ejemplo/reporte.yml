@@ -1,0 +1,17 @@
+# Copia este archivo a .github/workflows/reporte.yml de tu repositorio.
+# Necesita el secreto BRAIN_RAW_TOKEN en el repositorio (o en su organización).
+# Si la rama principal es master, cámbiala abajo.
+name: Reporte al vault
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  reporte:
+    uses: stysmrt/reportes-actions/.github/workflows/reporte.yml@main
+    secrets:
+      BRAIN_RAW_TOKEN: ${{ secrets.BRAIN_RAW_TOKEN }}

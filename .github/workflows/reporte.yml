@@ -1,0 +1,91 @@
+# Workflow reutilizable: el reporte de un push en el vault central.
+# Cada repositorio lo llama con un workflow corto (ver ejemplo/reporte.yml) y le pasa
+# el secreto BRAIN_RAW_TOKEN: un fine-grained token con acceso solo al vault y
+# «Contents: Read and write». Sin el secreto, avisa y termina bien.
+name: Reporte al vault
+
+on:
+  workflow_call:
+    inputs:
+      brain:
+        description: El repositorio del vault (owner/nombre)
+        type: string
+        default: stysmrt/brain-raw
+      carpeta:
+        description: La carpeta de reportes dentro del vault
+        type: string
+        default: 500-proyectos/100-reportes
+      zona:
+        description: Zona horaria de la fecha y la hora del reporte
+        type: string
+        default: America/Lima
+      config:
+        description: El archivo del repositorio con «Dónde mirar más»
+        type: string
+        default: .github/reporte.json
+      version:
+        description: Rama o tag de reportes-actions con los scripts
+        type: string
+        default: main
+    secrets:
+      BRAIN_RAW_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  reporte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Dos push seguidos del mismo repo escriben la misma nota: uno detrás de otro.
+    concurrency:
+      group: reporte-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      BRAIN_RAW_TOKEN: ${{ secrets.BRAIN_RAW_TOKEN }}
+    steps:
+      - name: Sin token, nada que hacer
+        if: env.BRAIN_RAW_TOKEN == ''
+        run: echo "::warning::Falta el secreto BRAIN_RAW_TOKEN; no se escribe el reporte."
+
+      - name: Clonar el repositorio del push
+        if: env.BRAIN_RAW_TOKEN != ''
+        uses: actions/checkout@v5
+        with:
+          path: repo
+          fetch-depth: 0
+
+      - name: Clonar reportes-actions (los scripts)
+        if: env.BRAIN_RAW_TOKEN != ''
+        uses: actions/checkout@v5
+        with:
+          repository: stysmrt/reportes-actions
+          ref: ${{ inputs.version }}
+          path: .reportes-actions
+
+      - name: Clonar el vault
+        if: env.BRAIN_RAW_TOKEN != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.brain }}
+          token: ${{ secrets.BRAIN_RAW_TOKEN }}
+          path: .brain-raw
+          fetch-depth: 1
+
+      - name: Escribir y subir el reporte
+        if: env.BRAIN_RAW_TOKEN != ''
+        working-directory: repo
+        env:
+          REPO: ${{ github.repository }}
+          RAMA: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ANTES: ${{ github.event.before }}
+          BRAIN_DIR: ${{ github.workspace }}/.brain-raw
+          CARPETA: ${{ inputs.carpeta }}
+          REPORTE_TZ: ${{ inputs.zona }}
+          CONFIG: ${{ inputs.config }}
+        run: |
+          git -C "$BRAIN_DIR" config user.name "reportes-bot"
+          git -C "$BRAIN_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node "$GITHUB_WORKSPACE/.reportes-actions/scripts/reporte.cjs"
