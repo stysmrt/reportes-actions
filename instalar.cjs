@@ -6,10 +6,10 @@
 //      iniciar sesión), que corre scripts/tarea.cjs.
 //
 // Uso (desde el clon de reportes-actions, que no se mueve después):
-//   node instalar.cjs --raiz <carpeta> [--raiz <carpeta>...] --duenos a,b
+//   node instalar.cjs --raiz <carpeta> [--raiz <carpeta>...]
 //        [--vault <ruta local del vault>] [--para claude,codex,opencode]
 //        [--hora 09:00] [--sin-tarea] [--ahora]
-// Sin --raiz ni --duenos, usa lo que ya hay en la configuración.
+// Sin --raiz, usa lo que ya hay en la configuración.
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -29,7 +29,7 @@ const CARPETAS = {
 };
 
 function argumentos(argv) {
-  const o = { raices: [], duenos: null, vault: undefined, para: [], hora: "09:00", tarea: true, ahora: false };
+  const o = { raices: [], vault: undefined, para: [], hora: "09:00", tarea: true, ahora: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const v = () => {
@@ -37,7 +37,6 @@ function argumentos(argv) {
       return argv[++i];
     };
     if (a === "--raiz") o.raices.push(path.resolve(v()));
-    else if (a === "--duenos") o.duenos = v().split(",").map((s) => s.trim()).filter(Boolean);
     else if (a === "--vault") o.vault = path.resolve(v());
     else if (a === "--para") o.para.push(...v().split(",").map((s) => s.trim()).filter(Boolean));
     else if (a === "--hora") o.hora = v();
@@ -54,7 +53,6 @@ function argumentos(argv) {
 function configura(o) {
   const c = leeConfig() || { ...PREDETERMINADA };
   if (o.raices.length) c.raices = o.raices;
-  if (o.duenos) c.duenos = o.duenos;
   if (o.vault !== undefined) c.vault = o.vault;
   for (const r of c.raices) if (!fs.existsSync(r)) throw new Error(`la carpeta no existe: ${r}`);
   if (c.vault && !fs.existsSync(c.vault)) throw new Error(`el vault no existe: ${c.vault}`);
@@ -116,7 +114,6 @@ function main() {
     const c = configura(o);
     console.log(`configuración: ${CONFIG}`);
     console.log(`  raíces: ${c.raices.join(", ")}`);
-    console.log(`  dueños con ficha: ${c.duenos.join(", ") || "(ninguno)"}`);
     console.log(`  vault local: ${c.vault || "(no; la skill lee el vault en GitHub)"}`);
     for (const p of o.para) for (const s of SKILLS) console.log(`skill ${s} (${p}): ${instalaSkill(s, CARPETAS[p]())}`);
     if (o.tarea) console.log(creaTarea(o.hora));

@@ -4,10 +4,12 @@
 // en las fichas de los proyectos (fichas.cjs). GitHub no sabe dónde está clonado un
 // repo: lo tiene que decir cada máquina.
 //
+// No crea fichas: solo actualiza las que hay. Una ficha nace con el primer reporte del
+// workflow, es decir, cuando el repo se suma con sumar-repo.cjs. Así 100-reportes solo
+// tiene los proyectos que el usuario decidió reportar.
+//
 // Uso:
 //   node inventario.cjs <carpeta> [<carpeta>...] [opciones]
-//     --duenos a,b       crea la ficha de los repos de GitHub de estos dueños que
-//                        aún no la tienen (sin esto solo actualiza las que hay)
 //     --maquina NOMBRE   el nombre de la máquina (por defecto, el del PC)
 //     --profundidad N    cuántas carpetas baja buscando repos (por defecto 5)
 //     --vault RUTA       escribe en esa carpeta y no hace commit ni push (pruebas)
@@ -48,7 +50,7 @@ function gitO(args, cwd) {
 }
 
 function argumentos(argv) {
-  const o = { raices: [], duenos: [], maquina: os.hostname(), profundidad: 5, vault: null,
+  const o = { raices: [], maquina: os.hostname(), profundidad: 5, vault: null,
     brain: "stysmrt/brain-raw", reportes: "500-proyectos/100-reportes", tz: "America/Lima" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -56,8 +58,7 @@ function argumentos(argv) {
       if (i + 1 >= argv.length) throw new Error(`falta el valor de ${a}`);
       return argv[++i];
     };
-    if (a === "--duenos") o.duenos = v().split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    else if (a === "--maquina") o.maquina = v();
+    if (a === "--maquina") o.maquina = v();
     else if (a === "--profundidad") o.profundidad = Number(v());
     else if (a === "--vault") o.vault = v();
     else if (a === "--brain") o.brain = v();
@@ -67,7 +68,7 @@ function argumentos(argv) {
     else if (a.startsWith("--")) throw new Error(`opción desconocida: ${a}`);
     else o.raices.push(path.resolve(a));
   }
-  if (!o.raices.length) throw new Error("uso: node inventario.cjs <carpeta> [<carpeta>...] [--duenos a,b] [--vault RUTA]");
+  if (!o.raices.length) throw new Error("uso: node inventario.cjs <carpeta> [<carpeta>...] [--vault RUTA]");
   if (!/^[\w.-]+$/.test(o.maquina)) throw new Error(`nombre de máquina no válido para una nota: ${o.maquina}`);
   return o;
 }
@@ -156,25 +157,8 @@ function aplicar(brainDir, o, filas, t) {
     cambios.push(relMaquina);
   }
 
-  const hay = F.fichas(brainDir, o.reportes);
-  for (const f of filas) {
-    if (!f.repo || hay.has(f.repo.toLowerCase())) continue;
-    if (!o.duenos.includes(f.repo.split("/")[0].toLowerCase())) continue;
-    const nombre = f.repo.split("/")[1];
-    const rel = F.rutaFicha(o.reportes, nombre);
-    if (fs.existsSync(abs(rel))) {
-      console.log(`aviso: ${rel} ya es la ficha de otro repositorio; ${f.repo} queda sin ficha`);
-      continue;
-    }
-    fs.mkdirSync(path.dirname(abs(rel)), { recursive: true });
-    const idF = F.idLibre(brainDir, t.sello);
-    fs.writeFileSync(abs(rel), F.fichaNueva({ repo: f.repo, nombre, fecha: t.fecha, id: idF,
-      creadoPor: "Inventario de repos", reporte: F.reporteSinReportes(f.repo), clones: "" }), "utf8");
-    hay.set(f.repo.toLowerCase(), { rel, repo: f.repo });
-    cambios.push(rel);
-  }
-
-  if (!cambios.length) return [];
+  // Solo las fichas que ya hay (opción C): se recalculan siempre, por si una ficha nueva
+  // del workflow aún no tiene los clones de esta máquina.
   for (const rel of F.actualizaClones(brainDir, o.reportes)) if (!cambios.includes(rel)) cambios.push(rel);
   return cambios;
 }

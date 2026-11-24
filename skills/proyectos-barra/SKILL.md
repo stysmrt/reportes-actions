@@ -46,6 +46,7 @@ Los comandos van con la ruta de esta skill: `node <skill>/scripts/proyecto.cjs �
   cambió por última vez lo de esa máquina; si es viejo, la ruta puede haber cambiado.
 - «?» en *Sin commit*: git no pudo abrir ese repo en esa máquina (carpeta de otro usuario
   de Windows). No es un error de la skill.
-- Si un proyecto no tiene ficha, no está en el sistema de reportes: dilo, y si el
-  usuario quiere sumarlo, se hace con `reportes-actions` (ejemplo/reporte.yml en el
-  repo y `--duenos` en el inventario).
+- Si un proyecto no tiene ficha, no está en el sistema de reportes: dilo. Si está
+  clonado en alguna máquina, sale en `maquinas/<PC>.md` (`proyecto.cjs maquina`). Si el
+  usuario quiere sumarlo, se hace con `node sumar-repo.cjs <ruta del clon> --subir`
+  desde el clon de reportes-actions.

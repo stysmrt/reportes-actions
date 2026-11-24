@@ -1,7 +1,6 @@
 // La configuración de esta máquina, ~/.reportes-actions.json (la escribe instalar.cjs):
 //   raices      carpetas donde buscar repos
-//   duenos      dueños de GitHub cuyos repos tienen ficha
-//   vault       la ruta local del vault, si esta máquina lo tiene (opcional)
+//   vault      la ruta local del vault, si esta máquina lo tiene (opcional)
 //   brain       el repositorio del vault (stysmrt/brain-raw)
 //   reportes    la carpeta de reportes en el vault (500-proyectos/100-reportes)
 //   tz          la zona horaria (America/Lima)
@@ -14,7 +13,6 @@ const CONFIG = process.env.REPORTES_ACTIONS_CONFIG || path.join(os.homedir(), ".
 
 const PREDETERMINADA = {
   raices: [],
-  duenos: [],
   vault: null,
   brain: "stysmrt/brain-raw",
   reportes: "500-proyectos/100-reportes",
@@ -30,7 +28,9 @@ function leeConfig() {
 }
 
 function guardaConfig(c) {
-  fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + "\n", "utf8");
+  // `duenos` ya no se usa: el inventario no crea fichas (las crea el primer reporte).
+  const { duenos, ...resto } = c;
+  fs.writeFileSync(CONFIG, JSON.stringify(resto, null, 2) + "\n", "utf8");
 }
 
 module.exports = { CONFIG, PREDETERMINADA, leeConfig, guardaConfig };

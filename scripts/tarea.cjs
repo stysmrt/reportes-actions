@@ -37,7 +37,6 @@ function main() {
   if (pull.status !== 0) anota(`git pull de reportes-actions falló (sigo con lo que hay): ${(pull.stderr || "").trim()}`);
 
   const args = [path.join(__dirname, "inventario.cjs"), ...c.raices];
-  if (c.duenos && c.duenos.length) args.push("--duenos", c.duenos.join(","));
   if (c.brain) args.push("--brain", c.brain);
   if (c.usuario) args.push("--usuario", c.usuario);
   if (c.reportes) args.push("--reportes", c.reportes);

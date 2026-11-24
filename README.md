@@ -78,12 +78,15 @@ El primer push a `main` crea la ficha y el reporte del día.
 ```
 git clone https://github.com/stysmrt/reportes-actions.git
 cd reportes-actions
-node instalar.cjs --raiz D:\proyectos --raiz D:\otra\carpeta --duenos stysmrt,sidebarbrain ^
+node instalar.cjs --raiz D:\proyectos --raiz D:\otra\carpeta ^
      --vault "D:\Dropbox\brain\raw" --para claude,codex,opencode --ahora
 ```
 
-- `--raiz`: dónde buscar repos (baja hasta 5 carpetas). `--duenos`: los dueños de
-  GitHub cuyos repos tienen ficha aunque aún no tengan el workflow.
+- `--raiz`: dónde buscar repos (baja hasta 5 carpetas). El inventario anota todos los
+  repos en la nota de la máquina, pero **no crea fichas**: solo actualiza «Dónde está
+  clonado» en las que ya hay. Una ficha nace con el primer reporte, cuando el repo se
+  suma con `sumar-repo.cjs`. Así `100-reportes` solo tiene los proyectos que decidiste
+  reportar.
 - `--vault`: la ruta local del vault, si este PC lo tiene. La skill lo usa solo si no
   puede leer GitHub con `gh`.
 - Crea la tarea programada **«Inventario de repos»** (cada día a las 09:00 o `--hora`, y
