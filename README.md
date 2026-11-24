@@ -48,6 +48,14 @@ con la API de GitHub que el token puede leer el vault y lo guarda como secreto c
 la rama principal, y ese push ya es el primer reporte. Si estás en otra rama, súbelo
 con tu flujo. `--sin-secreto` y `--cambiar-secreto` controlan el secreto.
 
+**Guardar el token en el PC (una vez):** con el token copiado,
+`node sumar-repo.cjs --guardar-token` comprueba que puede leer el vault y lo guarda
+cifrado con DPAPI en `~/.reportes-actions.token`. Solo tu usuario de Windows en ese PC
+puede descifrarlo, y el archivo copiado a otro sitio no sirve. Después, `sumar-repo.cjs`
+lo usa solo, sin copiar nada. Cuando el token caduque: guarda el nuevo y pásalo a cada
+repo con `--cambiar-secreto`. `--borrar-token` lo quita. Orden en que se busca el token:
+variable `BRAIN_RAW_TOKEN`, token guardado, portapapeles.
+
 Admite varios repos a la vez (`node sumar-repo.cjs <ruta1> <ruta2> --subir`): el token se
 lee una sola vez. Si lo copias de un gestor que vacía el portapapeles (el cofre de la
 barra lo hace a los 30 s), corre el comando enseguida.

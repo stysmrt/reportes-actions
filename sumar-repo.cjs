@@ -7,17 +7,21 @@
 //   4. con --subir, commit y push de esos archivos (el push ya genera el primer reporte).
 //
 // Uso:
-//   node sumar-repo.cjs <ruta del clon> [--subir] [--sin-secreto] [--cambiar-secreto]
+//   node sumar-repo.cjs <ruta del clon> [<ruta>...] [--subir] [--sin-secreto] [--cambiar-secreto]
+//   node sumar-repo.cjs --guardar-token     guarda el token del portapapeles, cifrado (DPAPI)
+//   node sumar-repo.cjs --borrar-token      borra el token guardado
 //
-// El token se toma de la variable de entorno BRAIN_RAW_TOKEN o, si no está, del
-// portapapeles (cópialo antes, por ejemplo del cofre). Nunca se muestra: va a `gh`
-// por stdin y, si salió del portapapeles, el portapapeles se vacía después.
+// El token se toma, en este orden, de la variable de entorno BRAIN_RAW_TOKEN, del
+// guardado con --guardar-token (~/.reportes-actions.token, cifrado con tu usuario de
+// Windows) o del portapapeles. Nunca se muestra: va a `gh` por stdin y, si salió del
+// portapapeles, el portapapeles se vacía después.
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 const { repoDeRemoto } = require("./scripts/fichas.cjs");
 const { leeConfig, PREDETERMINADA } = require("./scripts/config.cjs");
+const T = require("./scripts/token.cjs");
 
 const RAIZ = __dirname;
 const SECRETO = "BRAIN_RAW_TOKEN";
@@ -37,14 +41,17 @@ function run(cmd, args, opts = {}) {
 }
 
 function argumentos(argv) {
-  const o = { dirs: [], subir: false, secreto: true, cambiar: false };
+  const o = { dirs: [], subir: false, secreto: true, cambiar: false, token: null };
   for (const a of argv) {
-    if (a === "--subir") o.subir = true;
+    if (a === "--guardar-token") o.token = "guardar";
+    else if (a === "--borrar-token") o.token = "borrar";
+    else if (a === "--subir") o.subir = true;
     else if (a === "--sin-secreto") o.secreto = false;
     else if (a === "--cambiar-secreto") o.cambiar = true;
     else if (a.startsWith("--")) throw new Error(`no entiendo «${a}»`);
     else o.dirs.push(path.resolve(a));
   }
+  if (o.token) return o;
   if (!o.dirs.length) throw new Error("uso: node sumar-repo.cjs <ruta del clon> [<ruta>...] [--subir] [--sin-secreto] [--cambiar-secreto]");
   for (const d of o.dirs) if (!fs.existsSync(path.join(d, ".git"))) throw new Error(`${d} no es un repositorio git`);
   return o;
@@ -97,13 +104,6 @@ function configReporte(dir) {
   return true;
 }
 
-function portapapeles(accion) {
-  if (process.platform !== "win32") return null;
-  const cmd = accion === "leer" ? "Get-Clipboard -Raw" : "Set-Clipboard -Value ' '";
-  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", cmd], { encoding: "utf8" });
-  return r.status === 0 ? (r.stdout || "").trim() : null;
-}
-
 async function secreto(repo, o) {
   const hay = run("gh", ["secret", "list", "-R", repo]).split("\n").some((l) => l.split(/\s/)[0] === SECRETO);
   if (hay && !o.cambiar) {
@@ -113,18 +113,24 @@ async function secreto(repo, o) {
   const brain = (leeConfig() || PREDETERMINADA).brain;
   if (!tokenLeido) {
     let token = (process.env[SECRETO] || "").trim();
-    const delPortapapeles = !token;
-    if (delPortapapeles) token = portapapeles("leer") || "";
-    if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(token)) {
-      throw new Error(`no encuentro un token de GitHub en ${delPortapapeles ? "el portapapeles (el cofre lo vacía a los 30 s)" : SECRETO}: cópialo (github_pat_…) y vuelve a correrlo enseguida`);
+    let origen = `la variable ${SECRETO}`;
+    if (!token) {
+      token = T.leerGuardado();
+      origen = `guardado en ${T.ARCHIVO}`;
     }
-    if (delPortapapeles) portapapeles("vaciar");
-    const r = await fetch(`https://api.github.com/repos/${brain}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "reportes-actions" },
-    });
-    if (r.status !== 200) throw new Error(`el token no puede leer ${brain} (HTTP ${r.status}): ¿caducó o es de otro repo? No guardo nada`);
+    if (!token) {
+      token = T.portapapeles("leer") || "";
+      origen = "el portapapeles";
+      if (!T.esToken(token)) {
+        throw new Error(`no hay token: guárdalo una vez con --guardar-token, o cópialo (github_pat_…) y corre esto antes de 30 s (el cofre vacía el portapapeles)`);
+      }
+      T.portapapeles("vaciar");
+    }
+    if (!T.esToken(token)) throw new Error(`${origen} no tiene forma de token de GitHub (github_pat_…)`);
+    const estado = await T.puedeLeer(token, brain);
+    if (estado !== 200) throw new Error(`el token (${origen}) no puede leer ${brain} (HTTP ${estado}): ¿caducó? No guardo nada`);
     tokenLeido = token;
-    console.log(`token: puede leer ${brain}${delPortapapeles ? "; portapapeles vaciado" : ""}`);
+    console.log(`token (${origen}): puede leer ${brain}`);
   }
   const s = spawnSync("gh", ["secret", "set", SECRETO, "-R", repo], { input: tokenLeido, encoding: "utf8" });
   if (s.status !== 0) throw new Error(`gh secret set falló: ${(s.stderr || "").trim()}`);
@@ -147,8 +153,26 @@ function subir(dir, rama, archivos) {
   console.log(`--subir: commit y push a ${rama}; este push genera el primer reporte`);
 }
 
+async function token(accion) {
+  if (accion === "borrar") {
+    console.log(T.borrar() ? `token borrado: ${T.ARCHIVO}` : "no había token guardado");
+    return;
+  }
+  const t = T.portapapeles("leer") || "";
+  if (!T.esToken(t)) throw new Error("no hay un token (github_pat_…) en el portapapeles: cópialo y corre esto antes de 30 s");
+  T.portapapeles("vaciar");
+  const brain = (leeConfig() || PREDETERMINADA).brain;
+  const estado = await T.puedeLeer(t, brain);
+  if (estado !== 200) throw new Error(`ese token no puede leer ${brain} (HTTP ${estado}): ¿caducó o es otro? No guardo nada`);
+  const archivo = T.guardar(t);
+  if (T.leerGuardado() !== t) throw new Error("el token guardado no se pudo volver a leer igual");
+  console.log(`token guardado cifrado (DPAPI, solo tu usuario en este PC): ${archivo}`);
+  console.log(`puede leer ${brain}; portapapeles vaciado`);
+}
+
 async function main() {
   const o = argumentos(process.argv.slice(2));
+  if (o.token) return token(o.token);
   let fallos = 0;
   for (const dir of o.dirs) {
     try {
