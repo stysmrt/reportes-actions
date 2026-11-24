@@ -71,12 +71,17 @@ function instalaSkill(skill, carpeta) {
     const md = path.join(destino, "SKILL.md");
     const nombre = fs.existsSync(md) && (fs.readFileSync(md, "utf8").match(/^name:\s*(.+)$/m) || [])[1];
     if ((nombre || "").trim() !== skill) throw new Error(`${destino} existe y no es la skill ${skill}: no lo toco`);
-    fs.rmSync(destino, { recursive: true, force: true });
   }
+  // Se copia entera al lado y solo entonces se cambia por la vieja: si algo corta la
+  // instalación a medias, la skill anterior sigue ahí.
+  const nueva = `${destino}.nueva`;
   fs.mkdirSync(carpeta, { recursive: true });
-  fs.cpSync(origen, destino, { recursive: true });
+  fs.rmSync(nueva, { recursive: true, force: true });
+  fs.cpSync(origen, nueva, { recursive: true });
   // El script de la skill lee la configuración con config.cjs: va una copia.
-  fs.copyFileSync(path.join(RAIZ, "scripts", "config.cjs"), path.join(destino, "scripts", "config.cjs"));
+  fs.copyFileSync(path.join(RAIZ, "scripts", "config.cjs"), path.join(nueva, "scripts", "config.cjs"));
+  fs.rmSync(destino, { recursive: true, force: true });
+  fs.renameSync(nueva, destino);
   return destino;
 }
 
