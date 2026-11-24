@@ -12,6 +12,8 @@
 //     --profundidad N    cuántas carpetas baja buscando repos (por defecto 5)
 //     --vault RUTA       escribe en esa carpeta y no hace commit ni push (pruebas)
 //     --brain owner/rep  el vault en GitHub (por defecto stysmrt/brain-raw)
+//     --usuario NOMBRE   la cuenta de GitHub con la que se sube (por defecto, el dueño
+//                        del vault); importa si el PC tiene varias cuentas guardadas
 //     --reportes RUTA    la carpeta en el vault (por defecto 500-proyectos/100-reportes)
 //     --tz ZONA          la zona horaria (por defecto America/Lima)
 //
@@ -59,6 +61,7 @@ function argumentos(argv) {
     else if (a === "--profundidad") o.profundidad = Number(v());
     else if (a === "--vault") o.vault = v();
     else if (a === "--brain") o.brain = v();
+    else if (a === "--usuario") o.usuario = v();
     else if (a === "--reportes") o.reportes = v();
     else if (a === "--tz") o.tz = v();
     else if (a.startsWith("--")) throw new Error(`opción desconocida: ${a}`);
@@ -179,7 +182,10 @@ function aplicar(brainDir, o, filas, t) {
 function subir(o, filas, t) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "inventario-"));
   try {
-    git(["clone", "--depth", "1", "--filter=blob:none", "--sparse", `https://github.com/${o.brain}.git`, tmp], os.tmpdir());
+    // Con el usuario en la URL: si el Credential Manager tiene varias cuentas de GitHub,
+    // usa la que puede escribir en el vault (por defecto su dueño), no la última usada.
+    const usuario = o.usuario || o.brain.split("/")[0];
+    git(["clone", "--depth", "1", "--filter=blob:none", "--sparse", `https://${usuario}@github.com/${o.brain}.git`, tmp], os.tmpdir());
     git(["sparse-checkout", "set", o.reportes], tmp);
     const rama = git(["rev-parse", "--abbrev-ref", "HEAD"], tmp);
     for (let intento = 1; intento <= 5; intento++) {
